@@ -38,7 +38,7 @@
       origin: [
         "http://localhost:5173",
         "https://thesis-one-sage.vercel.app",
-        "http://192.168.8.36:5173",
+        "https://smart-barangay.forkforce.online",
         "http://192.168.1.41:5173"
       ],
       credentials: true,
