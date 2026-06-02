@@ -1,0 +1,30 @@
+<!doctype html>
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>smart-barangay</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="74f746d2-5ebf-4ddd-9fcd-6af4d5f439be"></script>
+    <script>
+  // Restore Toolpad scheme before paint (prevents flash)
+  (function () {
+    var scheme = localStorage.getItem('toolpad-color-scheme') || 'light';
+    document.documentElement.setAttribute('data-toolpad-color-scheme', scheme);
+  })();
+</script>
+
+<!-- shadcn/Tailwind dark class (ThemeProvider handles this, but also pre-apply) -->
+<script>
+  (function () {
+    var theme = localStorage.getItem('vite-ui-theme') || 'light';
+    if (theme === 'dark') document.documentElement.classList.add('dark');
+  })();
+</script>
+  </body>
+</html>

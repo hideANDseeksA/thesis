@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model purok {
+  id        String      @id @default(uuid()) @db.Uuid
+  name      String      @unique
+  residents residents[]
+}
+
+model system_setting {
+  logo_url             String?
+  web_name             String?
+  web_color            String?
+  barangay_status      String?
+  id_pattern           String?
+  residentNumber       Int     @default(0)
+  residentNumberLength Int     @default(6)
+  residentNumberType   String  @default("sequential")
+  residentPrefix       String  @default("T")
+  id                   Int     @id @default(1)
+}
+
+model residents {
+  id                     String            @id @default(uuid()) @db.Uuid
+  resident_id            String            @unique @default("")
+  f_name                 String
+  m_name                 String?
+  md_name                String?
+  l_name                 String
+  s_name                 String?
+  house_no               String?
+  b_place                String?
+  voting_status          String?
+  sector                 String?
+  remarks                String?
+  times_tamp             DateTime          @default(now())
+  email_address          String?
+  contact_no             String?
+  b_date                 DateTime?         @db.Date
+  sex                    Sex               @default(male) 
+  purok_id               String?           @db.Uuid
+  blood_type             String?
+  civil_status           Civil?
+  education              E_attainment?
+  emp_status             Emp_Status?
+  h_full_name            String?
+  h_email_address        String?           @unique
+  h_l_name               String?
+  citizenship            String?
+  citizenship_date       DateTime?         @db.Date
+  occupation             String?
+  blotter                blotter[]
+  complaints             complaints[]
+  health_records         health_records[]
+  notifications          notification[]
+  purok                  purok?            @relation(fields: [purok_id], references: [id])
+  handled_transactions   transaction[]     @relation("HandledTransactions")
+  requested_transactions transaction[]     @relation("RequestedTransactions")
+  user                   user?
+}
+
+model complaints {
+  id             String    @id @default(uuid()) @db.Uuid
+  resident_id    String    @db.Uuid
+  complaint_type String
+  description    String
+  status         String    @default("pending")
+  image_paths    String?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  resident       residents @relation(fields: [resident_id], references: [id], onDelete: Cascade)
+}
+
+model blotter {
+  id          String                 @id @default(uuid()) @db.Uuid
+  status      String                 @default("pending")
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @updatedAt
+  details     String?
+  file_path   String?
+  resident_id String                 @db.Uuid
+  type_case   String?
+  case_no     String?                @unique
+  resident    residents              @relation(fields: [resident_id], references: [id])
+}
+
+model certificates {
+  id                    String        @id @default(uuid()) @db.Uuid
+  template_name         String
+  template_price        Float?
+  template_path         String?
+  timestamp             DateTime      @default(now()) @db.Timestamp(6)
+  requestType           Boolean       @default(true)
+  template_requirements String?
+  public_view           Boolean       @default(false)
+  transactions          transaction[]
+}
+
+model document_types {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String      @unique
+  description String?
+  documents   documents[]
+}
+
+model documents {
+  id               String         @id @default(uuid()) @db.Uuid
+  document_type_id String         @db.Uuid
+  title            String
+  purpose          String?
+  issued_date      DateTime?      @db.Timestamp(6)
+  status           String         @default("Active")
+  file_url         String?
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @default(now())
+  is_public        Boolean        @default(false)
+  pin              Boolean        @default(false)
+  document_type    document_types @relation(fields: [document_type_id], references: [id])
+}
+
+
+model health_records {
+  id          String                 @id @default(uuid()) @db.Uuid
+  resident_id String                 @db.Uuid @unique
+  fam_no      String?
+  weight      Float                  
+  height      Float                  
+  bmi         Float                  
+
+  details     String?
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @updatedAt
+
+  resident    residents              @relation(fields: [resident_id], references: [id], onDelete: Cascade)
+  pregnancy   pregnancy_monitoring[]
+}
+
+  model pregnancy_monitoring {
+    id                     String          @id @default(uuid()) @db.Uuid
+    health_record_id       String         @db.Uuid
+    pregnancy_start_date   DateTime        @db.Date
+    expected_delivery_date DateTime        @db.Date
+    current_trimester      Int?
+    last_checkup           DateTime?       @db.Date
+    created_at             DateTime        @default(now())
+    updated_at             DateTime        @updatedAt
+    status                 P_status        @default(ongoing)
+    details                String?
+    health_record          health_records @relation(fields: [health_record_id], references: [id], onDelete: Cascade)
+  }
+
+model notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  resident_id String    @db.Uuid
+  content     String?
+  mark_read   Boolean   @default(false)
+  timestamp   DateTime  @default(now())
+  receiver    Role?
+  resident    residents @relation(fields: [resident_id], references: [id], onDelete: Cascade)
+}
+
+model transaction {
+  id               String       @id @default(uuid()) @db.Uuid
+  resident_id      String       @db.Uuid
+  certificate_id   String       @db.Uuid
+  details          String
+  status           String       @default("pending")
+  timestamp        DateTime     @default(now())
+  appointment_date DateTime?
+  handler          String?      @db.Uuid
+  certificate      certificates @relation(fields: [certificate_id], references: [id])
+  handled_by       residents?   @relation("HandledTransactions", fields: [handler], references: [id])
+  resident         residents    @relation("RequestedTransactions", fields: [resident_id], references: [id],onDelete: Cascade)
+}
+
+model user {
+  id          String    @id @default(uuid()) @db.Uuid
+  resident_id String    @unique @db.Uuid
+  password    String?
+  verified    Boolean   @default(false)
+  role        Role      @default(resident)
+  resident    residents @relation(fields: [resident_id], references: [id],onDelete: Cascade)
+  last_login  DateTime  @default(now())
+}
+
+enum Role {
+  resident
+  staff
+  healthworker
+}
+
+enum Sex {
+  male
+  female
+}
+
+enum Civil {
+  single
+  married
+  widow
+  seperated
+  annulled
+  co_habitation
+}
+
+enum Emp_Status {
+  student
+  employed
+  retired
+  unemployed
+  unknown
+}
+
+enum E_attainment {
+  none
+  elementary
+  highschool
+  vocational
+  college
+  postgraduate
+}
+
+enum P_status {
+  ongoing
+  delivered
+}
