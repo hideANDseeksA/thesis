@@ -1,7 +1,7 @@
 import express from "express";
 import { login,googleLogin,signup,verifyEmail,resendVerificationEmail,forgotPassword,resetPassword,googleSignup,sendVerificationEmail  } from "../controllers/auth.controller";
 import { refreshAccessToken } from "../middleware/auth.middleware";
-import { verifyApiKey } from "@/middleware/apiKey.middleware";
+import { verifyApiKey } from "../middleware/apiKey.middleware";
 import { createRateLimiter } from "../middleware/rate-limit";
 
 const router = express.Router();

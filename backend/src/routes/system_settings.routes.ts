@@ -10,7 +10,7 @@ import { decryptFields } from "../middleware/decrypt.middleware"
 import { upload } from "../middleware/upload"
 import { authenticate } from "../middleware/auth.middleware"
 import { rbac } from "../middleware/rbac"
-import { verifyApiKey } from "@/middleware/apiKey.middleware"
+import { verifyApiKey } from "../middleware/apiKey.middleware"
 
 const router = express.Router()
 

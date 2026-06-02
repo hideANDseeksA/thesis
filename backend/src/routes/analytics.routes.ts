@@ -2,9 +2,9 @@
 
 import express from "express";
 import {  getWebsite, getWebsiteActive, getWebsiteStats,getDashboardStats,getDashboardTotals } from "../controllers/analytics.controller";
-import { verifyApiKey } from "@/middleware/apiKey.middleware";
-import { authenticate } from "@/middleware/auth.middleware";
-import { rbac } from "@/middleware/rbac";
+import { verifyApiKey } from "../middleware/apiKey.middleware";
+import { authenticate } from "../middleware/auth.middleware";
+import { rbac } from "../middleware/rbac";
 
 const router = express.Router();
 
