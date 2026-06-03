@@ -11,8 +11,8 @@ import {
 } from "mantine-react-table";
 import { Search, RefreshCcw } from "lucide-react";
 import { getItem } from '@/utils/localStorageHelper'
-import { showWarningAlert,showDeleteConfirmation } from '@/utils/dialog'
-import { IconTrashFilled } from '@tabler/icons-react' 
+import { showWarningAlert, showDeleteConfirmation } from '@/utils/dialog'
+import { IconTrashFilled } from '@tabler/icons-react'
 import { toastDelete, toastError } from '@/utils/toast'
 
 const CertificateTable = () => {
@@ -20,6 +20,7 @@ const CertificateTable = () => {
   const [loading, setLoading] = useState(false)
   const [opened, setOpened] = useState(false)
   const [searchValue, setSearchValue] = useState("");
+  const [columnFilters, setColumnFilters] = useState([]);   // ← added
   const INPUT_HEIGHT = 36;
   const [selectedCertificate, setSelectedCertificate] = useState(null);
   const [generateOpened, setGenerateOpened] = useState(false)
@@ -42,15 +43,14 @@ const CertificateTable = () => {
     const confirmed = await showDeleteConfirmation({ title: "Certificate", text: "Are you sure you want to delete this certificate? This action cannot be undone." });
     if (!confirmed) return;
 
-    try {      await apiWithLoading.delete(`/certificates/${id}`)
+    try {
+      await apiWithLoading.delete(`/certificates/${id}`)
       setData((prev) => prev.filter((item) => item.id !== id))
       toastDelete("Certificate deleted", "The certificate has been permanently removed.")
     } catch (err) {
       console.error("Failed to delete certificate", err)
       toastError("Failed to delete certificate", "An error occurred while deleting the certificate.")
     }
-
-    
   }
 
   const handleView = (row) => {
@@ -64,6 +64,8 @@ const CertificateTable = () => {
     {
       accessorKey: 'template_name',
       header: 'Certificate Name',
+      enableColumnFilter: true,
+      filterFn: "includesString",
       mantineTableBodyCellProps: {
         className: 'capitalize text-sm font-medium',
       },
@@ -71,6 +73,7 @@ const CertificateTable = () => {
     {
       accessorKey: 'template_price',
       header: 'Price',
+      enableColumnFilter: false,
       Cell: ({ cell }) =>
         new Intl.NumberFormat('en-PH', {
           style: 'currency',
@@ -80,16 +83,22 @@ const CertificateTable = () => {
     {
       accessorKey: 'requestType',
       header: 'Request Type',
+      enableColumnFilter: true,
+      filterFn: "includesString",
       Cell: ({ cell }) => cell.getValue() ? 'Online Request' : "Appointment Only",
     },
     {
       accessorKey: 'public_view',
       header: 'Public View',
+      enableColumnFilter: true,
+      filterFn: "includesString",
       Cell: ({ cell }) => cell.getValue() ? 'Yes' : "No",
     },
     {
       accessorKey: 'template_url',
       header: 'Template',
+      enableColumnFilter: false,
+      enableSorting: false,
       Cell: ({ row }) => (
         <Button rightIcon={<IconEye />} variant="default" onClick={() => handleView(row)}>
           View
@@ -99,18 +108,20 @@ const CertificateTable = () => {
     {
       accessorKey: 'timestamp',
       header: 'Created At',
+      enableColumnFilter: false,
       Cell: ({ cell }) =>
         cell.getValue() ? new Date(cell.getValue()).toLocaleString() : '',
     },
     {
       id: 'actions',
       header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
       Cell: ({ row }) => (
         <Group spacing="xs">
           {tempResident && (
             <ActionIcon
               color="violet"
-              
               title="Generate Certificate"
               onClick={() => handleGenerate(row)}
             >
@@ -120,7 +131,7 @@ const CertificateTable = () => {
           <ActionIcon color="blue" title="Edit Certificate" onClick={() => handleEdit(row)}>
             <IconEdit />
           </ActionIcon>
-          <ActionIcon color="red"  title="Delete Certificate" onClick={() => handleDelete(row)}>
+          <ActionIcon color="red" title="Delete Certificate" onClick={() => handleDelete(row)}>
             <IconTrashFilled />
           </ActionIcon>
         </Group>
@@ -153,7 +164,6 @@ const CertificateTable = () => {
         onSuccess={fetchCertificates}
       />
 
-      {/* Generate Certificate Overlay */}
       {generateOpened && selectedTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-md lg:max-w-xl max-h-[90vh]">
@@ -182,10 +192,22 @@ const CertificateTable = () => {
         data={data}
         tableOptions={{
           enableTopToolbar: true,
-          enableColumnFilters: true,
-          enableGlobalFilter: true,
+          enableColumnFilters: true,        // ← enable column filters
+          enableGlobalFilter: true,        // ← off; search bar handles it manually
+          manualFiltering: false,           // ← filter local data
           enablePagination: true,
-          state: { isLoading: loading },
+          initialState: {
+            columnFilters: [],
+          },
+          state: {
+            isLoading: loading,
+            columnFilters,                  // ← pass controlled state
+          },
+          onColumnFiltersChange: (updater) => {
+            const next =
+              typeof updater === "function" ? updater(columnFilters) : updater;
+            setColumnFilters(next);
+          },
         }}
         renderToolbar={({ table }) => (
           <Flex p="md" justify="space-between">

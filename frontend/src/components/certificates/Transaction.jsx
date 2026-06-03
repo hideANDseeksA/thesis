@@ -33,13 +33,14 @@ import { api, apiWithLoading } from "@/lib/axios";
 import { getSocket } from "@/utils/socket";
 import { toastError, toastSuccess } from "@/utils/toast";
 import { showWarningAlert } from "@/utils/dialog";
+
 const STATUS_CONFIG = {
-  pending:        { color: "orange",  bg: "orange.1",  text: "orange.7" },
-  "on process":   { color: "blue",    bg: "blue.1",    text: "blue.7"   },
+  pending:          { color: "orange", bg: "orange.1", text: "orange.7" },
+  "on process":     { color: "blue",   bg: "blue.1",   text: "blue.7"   },
   "ready to claim": { color: "violet", bg: "violet.1", text: "violet.7" },
-  completed:      { color: "green",   bg: "green.1",   text: "green.7"  },
-  declined:       { color: "red",     bg: "red.1",     text: "red.7"    },
-  cancelled:      { color: "gray",    bg: "gray.1",    text: "gray.7"   },
+  completed:        { color: "green",  bg: "green.1",  text: "green.7"  },
+  declined:         { color: "red",    bg: "red.1",    text: "red.7"    },
+  cancelled:        { color: "gray",   bg: "gray.1",   text: "gray.7"   },
 };
 
 const getStatusConfig = (status) =>
@@ -49,6 +50,7 @@ const TransactionTable = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [columnFilters, setColumnFilters] = useState([]);   // ← added
   const INPUT_HEIGHT = 36;
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -83,13 +85,9 @@ const TransactionTable = () => {
       return;
     }
 
-    const handleNewTransaction = () => {
-      fetchTransactions();
-    };
+    const handleNewTransaction = () => fetchTransactions();
 
     const handleUpdatedTransaction = ({ id, status }) => {
-
-
       if (status === "declined" || status === "cancelled" || status === "completed") {
         setData((prev) => prev.filter((row) => row.id !== id));
       } else {
@@ -110,27 +108,23 @@ const TransactionTable = () => {
 
   /* ================= ACTIONS ================= */
   const handleStatusUpdate = async (transaction, status) => {
-
     const confirm = await showWarningAlert({
       title: `Update Certificate Status`,
-      text: "Are you sure you want to change the status to \"" + status + "\"?",
+      text: `Are you sure you want to change the status to "${status}"?`,
     });
     if (!confirm) return;
-
 
     try {
       await apiWithLoading.patch(`/transactions/${transaction.id}`, {
         status,
         handled_by_id: userId,
       });
-        toastSuccess("Certificate Status Updated", `Transaction status has been updated to "${status}".`);
-      if (status === "declined" || status === "cancelled" || status === "completed" || status === "unclaimed") {
+      toastSuccess("Certificate Status Updated", `Transaction status has been updated to "${status}".`);
+      if (["declined", "cancelled", "completed", "unclaimed"].includes(status)) {
         setData((prev) => prev.filter((row) => row.id !== transaction.id));
       } else {
         setData((prev) =>
-          prev.map((row) =>
-            row.id === transaction.id ? { ...row, status } : row
-          )
+          prev.map((row) => (row.id === transaction.id ? { ...row, status } : row))
         );
       }
     } catch (err) {
@@ -146,9 +140,6 @@ const TransactionTable = () => {
         {},
         { responseType: "blob" }
       );
-
-
-
       const blob = new Blob([res.data], {
         type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });
@@ -164,154 +155,156 @@ const TransactionTable = () => {
     }
   };
 
-  /* ================= TABLE COLUMNS ================= */
-  const columns = useMemo(
-    () => [
-      {
-        header: "Resident",
-        accessorFn: (row) =>
-          `${capitalizeWords(row.resident?.f_name ?? "")} ${capitalizeWords(
-            row.resident?.l_name ?? ""
-          )}`,
+  /* ================= COLUMNS ================= */
+  const columns = useMemo(() => [
+    {
+      header: "Resident",
+      id: "resident_name",
+      accessorFn: (row) =>
+        `${capitalizeWords(row.resident?.f_name ?? "")} ${capitalizeWords(row.resident?.l_name ?? "")}`,
+      enableColumnFilter: true,
+      filterFn: "includesString",
+    },
+    {
+      header: "Resident ID",
+      accessorKey: "resident.resident_id",
+      enableColumnFilter: true,
+      filterFn: "includesString",
+    },
+    {
+      header: "Certificate",
+      accessorKey: "certificate.template_name",
+      enableColumnFilter: true,
+      filterFn: "includesString",
+      Cell: ({ cell }) => capitalizeWords(cell.getValue() ?? ""),
+    },
+    {
+      header: "Price",
+      accessorKey: "certificate.template_price",
+      enableColumnFilter: false,
+      Cell: ({ cell }) =>
+        new Intl.NumberFormat("en-PH", {
+          style: "currency",
+          currency: "PHP",
+        }).format(cell.getValue() ?? 0),
+    },
+    {
+      header: "Status",
+      accessorKey: "status",
+      enableColumnFilter: true,
+      filterFn: "includesString",
+      Cell: ({ cell }) => {
+        const config = getStatusConfig(cell.getValue());
+        return (
+          <Text
+            fw={600}
+            size="xs"
+            px="sm"
+            py={4}
+            bg={config.bg}
+            c={config.text}
+            style={{ borderRadius: 12, display: "inline-block" }}
+          >
+            {cell.getValue()}
+          </Text>
+        );
       },
-      {
-        header: "Resident ID",
-        accessorKey: "resident.resident_id",
+    },
+    {
+      header: "Created At",
+      accessorKey: "timestamp",
+      enableColumnFilter: false,
+      Cell: ({ cell }) =>
+        cell.getValue() ? new Date(cell.getValue()).toLocaleString() : "",
+    },
+    {
+      header: "Actions",
+      id: "actions",
+      enableSorting: false,
+      enableColumnFilter: false,
+      Cell: ({ row }) => {
+        const status = row.original.status;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ActionIcon variant="subtle">
+                <MoreHorizontal size={16} />
+              </ActionIcon>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                className="text-green-600 focus:text-green-700 focus:bg-green-50 cursor-pointer"
+                onClick={() => handleStatusUpdate(row.original, "on process")}
+                disabled={status !== "pending"}
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approve
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
+                disabled={status !== "pending"}
+                onClick={() => handleStatusUpdate(row.original, "declined")}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Decline
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="text-violet-600 focus:text-violet-700 focus:bg-violet-50 cursor-pointer"
+                disabled={status !== "on process"}
+                onClick={() => handleStatusUpdate(row.original, "ready to claim")}
+              >
+                <PackageCheck className="mr-2 h-4 w-4" />
+                Ready to Claim
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 cursor-pointer"
+                disabled={status !== "ready to claim"}
+                onClick={() => handleStatusUpdate(row.original, "completed")}
+              >
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Completed
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 cursor-pointer"
+                disabled={status !== "ready to claim"}
+                onClick={() => handleStatusUpdate(row.original, "unclaimed")}
+              >
+                <PackageCheckIcon className="mr-2 h-4 w-4" />
+                Unclaimed
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50"
+                onClick={() => {
+                  setEditingTransaction(row.original);
+                  setIsEditModalOpen(true);
+                }}
+              >
+                <IconEye className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => handleGenerate(row.original)}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Generate
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
       },
-      {
-        header: "Certificate",
-        accessorKey: "certificate.template_name",
-        Cell: ({ cell }) => capitalizeWords(cell.getValue() ?? ""),
-      },
-      {
-        header: "Price",
-        accessorKey: "certificate.template_price",
-        Cell: ({ cell }) =>
-          new Intl.NumberFormat("en-PH", {
-            style: "currency",
-            currency: "PHP",
-          }).format(cell.getValue() ?? 0),
-      },
-      {
-        header: "Status",
-        accessorKey: "status",
-        Cell: ({ cell }) => {
-          const config = getStatusConfig(cell.getValue());
-          return (
-            <Text
-              fw={600}
-              size="xs"
-              px="sm"
-              py={4}
-              bg={config.bg}
-              c={config.text}
-              style={{ borderRadius: 12, display: "inline-block" }}
-            >
-              {cell.getValue()}
-            </Text>
-          );
-        },
-      },
-      {
-        header: "Created At",
-        accessorKey: "timestamp",
-        Cell: ({ cell }) =>
-          cell.getValue() ? new Date(cell.getValue()).toLocaleString() : "",
-      },
-      {
-        header: "Actions",
-        Cell: ({ row }) => {
-          const status = row.original.status;
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <ActionIcon variant="subtle">
-                  <MoreHorizontal size={16} />
-                </ActionIcon>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-
-                {/* Approve — visible when pending */}
-                <DropdownMenuItem
-                  className="text-green-600 focus:text-green-700 focus:bg-green-50 cursor-pointer"
-                  onClick={() => handleStatusUpdate(row.original, "on process")}
-                  disabled={status !== "pending"}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve
-                </DropdownMenuItem>
-
-                {/* Decline — only when still pending */}
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer"
-                  disabled={status !== "pending"}
-                  onClick={() => handleStatusUpdate(row.original, "declined")}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Decline
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                {/* Ready to Claim — enabled when on process */}
-                <DropdownMenuItem
-                  className="text-violet-600 focus:text-violet-700 focus:bg-violet-50 cursor-pointer"
-                  disabled={status !== "on process"}
-                  onClick={() => handleStatusUpdate(row.original, "ready to claim")}
-                >
-                  <PackageCheck className="mr-2 h-4 w-4" />
-                  Ready to Claim
-                </DropdownMenuItem>
-
-                {/* Completed — enabled when ready to claim */}
-                <DropdownMenuItem
-                  className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 cursor-pointer"
-                  disabled={status !== "ready to claim"}
-                  onClick={() => handleStatusUpdate(row.original, "completed")}
-                >
-                  <ClipboardCheck className="mr-2 h-4 w-4" />
-                  Completed
-                </DropdownMenuItem>
-                
-                 <DropdownMenuItem
-                  className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 cursor-pointer"
-                  disabled={status !== "ready to claim"}
-                  onClick={() => handleStatusUpdate(row.original, "unclaimed")}
-                >
-                  <PackageCheckIcon className="mr-2 h-4 w-4" />
-                  Unclaimed
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-
-                {/* Edit */}
-                <DropdownMenuItem
-                  className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50"
-                  onClick={() => {
-                    setEditingTransaction(row.original);
-                    setIsEditModalOpen(true);
-                  }}
-                >
-                  <IconEye className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-
-                {/* Generate */}
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => handleGenerate(row.original)}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Generate
-                </DropdownMenuItem>
-
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        },
-      },
-    ],
-    []
-  );
+    },
+  ], []);
 
   return (
     <>
@@ -349,6 +342,9 @@ const TransactionTable = () => {
           enableTopToolbar: true,
           enablePagination: true,
           enableExpanding: true,
+          enableColumnFilters: true,        // ← added
+          enableGlobalFilter: true,         // ← added
+          manualFiltering: false,           // ← added
           mantineTableContainerProps: {
             style: {
               maxHeight: "calc(100vh - 320px)",
@@ -356,7 +352,18 @@ const TransactionTable = () => {
               tableLayout: "auto",
             },
           },
-          state: { isLoading: loading },
+          initialState: {
+            columnFilters: [],
+          },
+          state: {
+            isLoading: loading,
+            columnFilters,                  // ← added
+          },
+          onColumnFiltersChange: (updater) => {
+            const next =
+              typeof updater === "function" ? updater(columnFilters) : updater;
+            setColumnFilters(next);
+          },
           renderDetailPanel: ({ row }) => {
             const details = row.original.details || {};
             const transaction = row.original;
@@ -374,12 +381,9 @@ const TransactionTable = () => {
             return (
               <Box p="xl">
                 <Stack spacing="lg">
-                  {/* Header Section */}
                   <Flex justify="space-between" align="center">
                     <div>
-                      <Text size="lg" fw={600}>
-                        Transaction Details
-                      </Text>
+                      <Text size="lg" fw={600}>Transaction Details</Text>
                       <Text size="sm" c="dimmed" mt={4}>
                         {transaction.certificate?.template_name || "Certificate"} Request
                       </Text>
@@ -399,15 +403,7 @@ const TransactionTable = () => {
 
                   <Divider />
 
-                  {/* Main Info Grid - 3 Columns */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
-                      gap: "1rem",
-                    }}
-                  >
-                    {/* Resident Info Card */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
                     <Box p="md" style={{ borderRadius: 8, border: "1px solid #e9ecef", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                       <Flex align="center" mb="sm">
                         <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#228be6", marginRight: 8 }} />
@@ -427,7 +423,6 @@ const TransactionTable = () => {
                       </Stack>
                     </Box>
 
-                    {/* Certificate Info Card */}
                     <Box p="md" style={{ borderRadius: 8, border: "1px solid #e9ecef", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                       <Flex align="center" mb="sm">
                         <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#40c057", marginRight: 8 }} />
@@ -449,7 +444,6 @@ const TransactionTable = () => {
                       </Stack>
                     </Box>
 
-                    {/* Transaction Info Card */}
                     <Box p="md" style={{ borderRadius: 8, border: "1px solid #e9ecef", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                       <Flex align="center" mb="sm">
                         <Box style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#fa5252", marginRight: 8 }} />
@@ -473,7 +467,6 @@ const TransactionTable = () => {
                     </Box>
                   </div>
 
-                  {/* Certificate-Specific Details Section */}
                   {hasDetails && (
                     <>
                       <Divider
@@ -536,7 +529,7 @@ const TransactionTable = () => {
               >
                 <ActionIcon
                   variant="subtle"
-                  style={{ height: INPUT_HEIGHT, width: INPUT_HEIGHT, borderRight: "1px solid #ced4da" }}
+                  style={{ height: INPUT_HEIGHT, width: INPUT_HEIGHT, borderRight: "1px solid #ced4da", borderRadius: 0 }}
                   onClick={() => table.setGlobalFilter(searchValue)}
                 >
                   <Search size={16} />
@@ -548,7 +541,7 @@ const TransactionTable = () => {
                     setSearchValue(e.target.value);
                     table.setGlobalFilter(e.target.value);
                   }}
-                  styles={{ input: { height: INPUT_HEIGHT, border: "none" } }}
+                  styles={{ input: { height: INPUT_HEIGHT, border: "none", borderRadius: 0 } }}
                   style={{ width: 260 }}
                 />
               </Flex>

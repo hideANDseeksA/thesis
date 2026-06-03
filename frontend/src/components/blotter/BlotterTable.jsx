@@ -330,7 +330,7 @@ const BlotterTable = () => {
       });
     }
   };
-
+const [columnFilters, setColumnFilters] = useState([]);
   // ── Columns ───────────────────────────────────────────────────────────────────
   const columns = useMemo(() => [
     {
@@ -571,13 +571,18 @@ const BlotterTable = () => {
             expanded: true,
             density: 'xs',
           },
-          state: {
-            isLoading: loading,
-            pagination: {
-              pageIndex: page - 1,
-              pageSize: limit,
-            },
-          },
+     state: {
+  isLoading: loading,
+  columnFilters,          // ← add this
+  pagination: {
+    pageIndex: page - 1,
+    pageSize: limit,
+  },
+},
+onColumnFiltersChange: (updater) => {
+  const next = typeof updater === "function" ? updater(columnFilters) : updater;
+  setColumnFilters(next);
+},
           onPaginationChange: (updater) => {
             const next =
               typeof updater === 'function'

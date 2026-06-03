@@ -296,7 +296,7 @@ const HistoryTable = () => {
       setGeneratingReport(false);
     }
   };
-
+  const [columnFilters, setColumnFilters] = useState([]);
   // ── Columns ───────────────────────────────────────────────────────────────
   const columns = useMemo(
     () => [
@@ -507,6 +507,8 @@ const HistoryTable = () => {
           enableTopToolbar: true,
           enablePagination: true,
           enableExpanding: true,
+          enableColumnFilters: true,   // ← add
+enableGlobalFilter: true,   
           mantineTableContainerProps: {
             style: {
               maxHeight: "calc(100vh - 320px)",
@@ -514,7 +516,14 @@ const HistoryTable = () => {
               tableLayout: "auto",
             },
           },
-          state: { isLoading: loading },
+          state: {
+  isLoading: loading,
+  columnFilters,             // ← add
+},
+onColumnFiltersChange: (updater) => {
+  const next = typeof updater === "function" ? updater(columnFilters) : updater;
+  setColumnFilters(next);
+},
           renderDetailPanel: ({ row }) => {
             const details = row.original.details || {};
             const transaction = row.original;

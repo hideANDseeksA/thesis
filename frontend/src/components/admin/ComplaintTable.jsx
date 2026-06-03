@@ -62,6 +62,7 @@ const TransactionTable = () => {
 
   const userId = getItem("resident_id");
   const { resident_data } = useAuth();
+  const [columnFilters, setColumnFilters] = useState([]);
 
   const fetchComplaints = async () => {
     setLoading(true);
@@ -317,14 +318,22 @@ const isVideo = (url) => {
           enableTopToolbar: true,
           enablePagination: true,
           enableExpanding: true,
+            enableColumnFilters: true,   // ← add
+  enableGlobalFilter: true,    // ← add
           mantineTableContainerProps: {
             style: {
               maxHeight: "calc(100vh - 320px)",
               overflowY: "auto",
             },
           },
-          state: { isLoading: loading },
-
+       state: {
+    isLoading: loading,
+    columnFilters,             // ← add
+  },
+  onColumnFiltersChange: (updater) => {
+    const next = typeof updater === "function" ? updater(columnFilters) : updater;
+    setColumnFilters(next);
+  },
           /* ─── Expanded detail panel ─────────────────────────────── */
           renderDetailPanel: ({ row }) => {
             const complaint = row.original;

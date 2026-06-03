@@ -157,7 +157,7 @@ const PregnancyMonitoringTable = () => {
   const totalIncoming      = missedVisits.reduce((s, r) => s + (r.total_incoming ?? 0), 0);
   const overdueRows        = missedVisits.filter((r) => r.total_missed   > 0);
   const incomingRows       = missedVisits.filter((r) => r.total_incoming > 0);
-
+const [columnFilters, setColumnFilters] = useState([]);
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -180,10 +180,19 @@ const PregnancyMonitoringTable = () => {
           enableTopToolbar: true,
           enablePagination: true,
           enableExpanding: true,
+          enableColumnFilters: true,   // ← add
+  enableGlobalFilter: true,    // ← add
           mantineTableContainerProps: {
             style: { maxHeight: "calc(100vh - 320px)", overflowY: "auto" },
           },
-          state: { isLoading: loading },
+           state: {
+    isLoading: loading,
+    columnFilters,             // ← add
+  },
+  onColumnFiltersChange: (updater) => {
+    const next = typeof updater === "function" ? updater(columnFilters) : updater;
+    setColumnFilters(next);
+  },
           renderDetailPanel: ({ row }) => (
             <DetailPanel row={row} onEdit={openEditDialog} />
           ),

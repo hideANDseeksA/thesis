@@ -30,7 +30,7 @@ const [purposeOpen, setPurposeOpen] = useState(false);
 const [selectedPurpose, setSelectedPurpose] = useState("");
 const [selectedTitle, setSelectedTitle] = useState("");
 
-
+const [columnFilters, setColumnFilters] = useState([]);
   const [opened, setOpened] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
 
@@ -232,7 +232,7 @@ const [selectedTitle, setSelectedTitle] = useState("");
           enableColumnFilters: true,
           enableGlobalFilter: true,
           enablePagination: true,
-          state: { isLoading: loading },
+          
 
 
           enableGrouping: true,
@@ -246,6 +246,14 @@ const [selectedTitle, setSelectedTitle] = useState("");
       expanded: true,
       density: 'xs',
     },
+    state: {
+  isLoading: loading,
+  columnFilters,             // ← add
+},
+onColumnFiltersChange: (updater) => {
+  const next = typeof updater === "function" ? updater(columnFilters) : updater;
+  setColumnFilters(next);
+},
         }}
         renderToolbar={({ table }) => (
           <Flex p="md" justify="space-between">

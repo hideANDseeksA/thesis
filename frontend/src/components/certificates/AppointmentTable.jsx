@@ -30,12 +30,13 @@ import { getItem } from "@/utils/localStorageHelper";
 import { useAuth } from "@/auth/AuthContext";
 import { api, apiWithLoading } from "@/lib/axios";
 import { getSocket } from "@/utils/socket";
-import {showWarningAlert} from "@/utils/dialog";
+import { showWarningAlert } from "@/utils/dialog";
 
 const AppointmentTable = () => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchValue, setSearchValue] = useState("");
+    const [columnFilters, setColumnFilters] = useState([]);   // ← added
     const adminId = getItem("resident_id");
     const [editingAppointment, setEditingAppointment] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -63,10 +64,8 @@ const AppointmentTable = () => {
         fetchAppointments();
     }, []);
 
-    // ✅ Real-time: refetch when a new transaction is submitted
     useEffect(() => {
         let socket;
-
         try {
             socket = getSocket();
         } catch (err) {
@@ -74,18 +73,14 @@ const AppointmentTable = () => {
             return;
         }
 
-        const handleNewTransaction = () => {
-            fetchAppointments();
-        };
+        const handleNewTransaction = () => fetchAppointments();
 
         const handleUpdatedTransaction = ({ id, status }) => {
             if (status === "declined" || status === "cancelled") {
                 setData((prev) => prev.filter((row) => row.id !== id));
             } else {
                 setData((prev) =>
-                    prev.map((row) =>
-                        row.id === id ? { ...row, status } : row
-                    )
+                    prev.map((row) => (row.id === id ? { ...row, status } : row))
                 );
             }
         };
@@ -102,15 +97,11 @@ const AppointmentTable = () => {
     /* ================= ACTIONS ================= */
     const handleDecline = async (appointment) => {
         try {
-            if (!appointment?.id || !appointment?.resident_id) {
-                throw new Error("Invalid appointment data");
-            }
-
-            await apiWithLoading.patch(
-                `/transactions/${appointment.id}`,
-                { status: "declined", handled_by_id: adminId }
-            );
-
+            if (!appointment?.id || !appointment?.resident_id) throw new Error("Invalid appointment data");
+            await apiWithLoading.patch(`/transactions/${appointment.id}`, {
+                status: "declined",
+                handled_by_id: adminId,
+            });
             fetchAppointments();
         } catch (err) {
             console.error("Failed to decline appointment", err);
@@ -118,154 +109,158 @@ const AppointmentTable = () => {
     };
 
     const handleComplete = async (appointment) => {
-
         const confirm = await showWarningAlert({
             title: "Update Status",
-            text: "Are you sure you want to mark this appointment as completed ? This action cannot be undone.",
+            text: "Are you sure you want to mark this appointment as completed? This action cannot be undone.",
             confirmText: "Yes, complete it",
         });
         if (!confirm) return;
 
         try {
-            if (!appointment?.id || !appointment?.resident_id) {
-                throw new Error("Invalid appointment data");
-            }
-
-            await apiWithLoading.patch(
-                `/transactions/${appointment.id}`,
-                { status: "completed", handled_by_id: adminId }
-            );
-
+            if (!appointment?.id || !appointment?.resident_id) throw new Error("Invalid appointment data");
+            await apiWithLoading.patch(`/transactions/${appointment.id}`, {
+                status: "completed",
+                handled_by_id: adminId,
+            });
             fetchAppointments();
         } catch (err) {
             console.error("Failed to complete appointment", err);
         }
     };
 
-    /* ================= TABLE COLUMNS ================= */
-    const columns = useMemo(
-        () => [
-            {
-                header: "Resident",
-                accessorFn: (row) =>
-                    `${capitalizeWords(row.resident?.f_name ?? "")} ${capitalizeWords(
-                        row.resident?.l_name ?? ""
-                    )}`,
+    /* ================= COLUMNS ================= */
+    const columns = useMemo(() => [
+        {
+            header: "Resident",
+            id: "resident_name",
+            accessorFn: (row) =>
+                `${capitalizeWords(row.resident?.f_name ?? "")} ${capitalizeWords(row.resident?.l_name ?? "")}`,
+            enableColumnFilter: true,
+            filterFn: "includesString",
+        },
+        {
+            header: "Resident ID",
+            accessorKey: "resident.resident_id",
+            enableColumnFilter: true,
+            filterFn: "includesString",
+        },
+        {
+            header: "Certificate",
+            accessorKey: "certificate.template_name",
+            enableColumnFilter: true,
+            filterFn: "includesString",
+            Cell: ({ cell }) => capitalizeWords(cell.getValue() ?? ""),
+        },
+        {
+            header: "Price",
+            accessorKey: "certificate.template_price",
+            enableColumnFilter: false,
+            Cell: ({ cell }) =>
+                new Intl.NumberFormat("en-PH", {
+                    style: "currency",
+                    currency: "PHP",
+                }).format(cell.getValue() ?? 0),
+        },
+        {
+            header: "Status",
+            accessorKey: "status",
+            enableColumnFilter: true,
+            filterFn: "includesString",
+            Cell: ({ cell }) => {
+                const status = cell.getValue();
+                const colorMap = {
+                    pending:      { bg: "#fff3e0", text: "#e65100" },
+                    approved:     { bg: "#e8f5e9", text: "#2e7d32" },
+                    "on process": { bg: "#f3e5f5", text: "#6a1b9a" },
+                    completed:    { bg: "#e3f2fd", text: "#1565c0" },
+                    declined:     { bg: "#ffebee", text: "#c62828" },
+                };
+                const config = colorMap[status] ?? { bg: "#f5f5f5", text: "#616161" };
+                return (
+                    <Text
+                        fw={600}
+                        size="xs"
+                        px="sm"
+                        py={4}
+                        bg={config.bg}
+                        c={config.text}
+                        style={{ borderRadius: 12, display: "inline-block" }}
+                    >
+                        {status}
+                    </Text>
+                );
             },
-            {
-                header: "Resident ID",
-                accessorKey: "resident.resident_id",
-            },
-            {
-                header: "Certificate",
-                accessorKey: "certificate.template_name",
-                Cell: ({ cell }) => capitalizeWords(cell.getValue() ?? ""),
-            },
-            {
-                header: "Price",
-                accessorKey: "certificate.template_price",
-                Cell: ({ cell }) =>
-                    new Intl.NumberFormat("en-PH", {
-                        style: "currency",
-                        currency: "PHP",
-                    }).format(cell.getValue() ?? 0),
-            },
-            {
-                header: "Status",
-                accessorKey: "status",
-                Cell: ({ cell }) => {
-                    const status = cell.getValue();
-                    const colorMap = {
-                        pending:    { bg: "#fff3e0", text: "#e65100" },
-                        approved:   { bg: "#e8f5e9", text: "#2e7d32" },
-                        "on process": { bg: "#f3e5f5", text: "#6a1b9a" },
-                        completed:  { bg: "#e3f2fd", text: "#1565c0" },
-                        declined:   { bg: "#ffebee", text: "#c62828" },
-                    };
-                    const config = colorMap[status] ?? { bg: "#f5f5f5", text: "#616161" };
-                    return (
-                        <Text
-                            fw={600}
-                            size="xs"
-                            px="sm"
-                            py={4}
-                            bg={config.bg}
-                            c={config.text}
-                            style={{ borderRadius: 12, display: "inline-block" }}
+        },
+        {
+            header: "Appointment Date",
+            accessorKey: "appointment_date",
+            enableColumnFilter: false,
+            Cell: ({ cell }) =>
+                cell.getValue()
+                    ? new Date(cell.getValue()).toLocaleString()
+                    : "Not scheduled",
+        },
+        {
+            header: "Actions",
+            id: "actions",
+            enableSorting: false,
+            enableColumnFilter: false,
+            Cell: ({ row }) => (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <ActionIcon variant="subtle">
+                            <MoreHorizontal size={16} />
+                        </ActionIcon>
+                    </DropdownMenuTrigger>
+
+                    <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem
+                            disabled={["approved", "completed", "on process"].includes(row.original.status)}
+                            className="text-green-600 cursor-pointer"
+                            onClick={() => {
+                                setSelectedAppointment(row.original);
+                                setApproveModalOpen(true);
+                            }}
                         >
-                            {status}
-                        </Text>
-                    );
-                },
-            },
-            {
-                header: "Appointment Date",
-                accessorKey: "appointment_date",
-                Cell: ({ cell }) =>
-                    cell.getValue()
-                        ? new Date(cell.getValue()).toLocaleString()
-                        : "Not scheduled",
-            },
-            {
-                header: "Actions",
-                Cell: ({ row }) => (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <ActionIcon variant="subtle">
-                                <MoreHorizontal size={16} />
-                            </ActionIcon>
-                        </DropdownMenuTrigger>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Approve
+                        </DropdownMenuItem>
 
-                        <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                                disabled={["approved","completed","on process"].includes(row.original.status)}
-                                className="text-green-600 cursor-pointer"
-                                onClick={() => {
-                                    setSelectedAppointment(row.original);
-                                    setApproveModalOpen(true);
-                                }}
-                            >
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Approve
-                            </DropdownMenuItem>
+                        <DropdownMenuItem
+                            className="text-red-600 cursor-pointer"
+                            disabled={["approved", "completed", "on process"].includes(row.original.status)}
+                            onClick={() => handleDecline(row.original)}
+                        >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Decline
+                        </DropdownMenuItem>
 
-                            <DropdownMenuItem
-                                className="text-red-600 cursor-pointer"
-                                disabled={["approved","completed","on process"].includes(row.original.status)}
-                                onClick={() => handleDecline(row.original)}
-                            >
-                                <XCircle className="mr-2 h-4 w-4" />
-                                Decline
-                            </DropdownMenuItem>
+                        <DropdownMenuItem
+                            className="text-blue-600 cursor-pointer"
+                            disabled={row.original.status !== "on process"}
+                            onClick={() => handleComplete(row.original)}
+                        >
+                            <CheckCheck className="mr-2 h-4 w-4" />
+                            Completed
+                        </DropdownMenuItem>
 
-                            <DropdownMenuItem
-                                className="text-blue-600 cursor-pointer"
-                                disabled={row.original.status !== "on process"}
-                                onClick={() => handleComplete(row.original)}
-                            >
-                                <CheckCheck className="mr-2 h-4 w-4" />
-                                Completed
-                            </DropdownMenuItem>
+                        <DropdownMenuSeparator />
 
-                            <DropdownMenuSeparator />
-
-                            <DropdownMenuItem
-                                disabled={!["approved", "on process"].includes(row.original.status)}
-                                onClick={() => {
-                                    setEditingAppointment(row.original);
-                                    setIsEditModalOpen(true);
-                                }}
-                            >
-                                <FileText className="mr-2 h-4 w-4" />
-                                Generate
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ),
-            },
-        ],
-        []
-    );
+                        <DropdownMenuItem
+                            disabled={!["approved", "on process"].includes(row.original.status)}
+                            onClick={() => {
+                                setEditingAppointment(row.original);
+                                setIsEditModalOpen(true);
+                            }}
+                        >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Generate
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ),
+        },
+    ], []);
 
     return (
         <>
@@ -273,13 +268,8 @@ const AppointmentTable = () => {
             {approveModalOpen && selectedAppointment && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
-                        <Text fw={600} size="lg">
-                            Schedule Appointment
-                        </Text>
-
-                        <Text size="sm" c="dimmed">
-                            Select appointment date and time
-                        </Text>
+                        <Text fw={600} size="lg">Schedule Appointment</Text>
+                        <Text size="sm" c="dimmed">Select appointment date and time</Text>
 
                         <TextInput
                             type="datetime-local"
@@ -313,7 +303,6 @@ const AppointmentTable = () => {
                                                 handler_name: resident_data?.resident_name,
                                             }
                                         );
-
                                         setApproveModalOpen(false);
                                         setSelectedAppointment(null);
                                         setAppointmentDate("");
@@ -364,13 +353,35 @@ const AppointmentTable = () => {
             <ReusableMantineTable
                 columns={columns}
                 data={data}
-                state={{ isLoading: loading }}
+                tableOptions={{
+                    enableTopToolbar: true,
+                    enableColumnFilters: true,        // ← enable column filters
+                    enableGlobalFilter: true,         // ← keep global filter
+                    manualFiltering: false,           // ← filter local data
+                    enablePagination: true,
+                    enableStickyHeader: true,
+                    mantineTableContainerProps: {
+                        style: { maxHeight: "calc(100vh - 320px)", overflowY: "auto" },
+                    },
+                    initialState: {
+                        columnFilters: [],
+                    },
+                    state: {
+                        isLoading: loading,
+                        columnFilters,                // ← controlled filter state
+                    },
+                    onColumnFiltersChange: (updater) => {
+                        const next =
+                            typeof updater === "function" ? updater(columnFilters) : updater;
+                        setColumnFilters(next);
+                    },
+                }}
                 renderToolbar={({ table }) => (
                     <Flex p="md" justify="space-between">
                         <Flex gap="xs" align="center">
                             <Flex
                                 align="center"
-                                style={{ border: "1px solid #ced4da", borderRadius: 4 }}
+                                style={{ border: "1px solid #ced4da", borderRadius: 4, overflow: "hidden" }}
                             >
                                 <ActionIcon
                                     variant="subtle"
@@ -378,6 +389,7 @@ const AppointmentTable = () => {
                                         height: INPUT_HEIGHT,
                                         width: INPUT_HEIGHT,
                                         borderRight: "1px solid #ced4da",
+                                        borderRadius: 0,
                                     }}
                                     onClick={() => table.setGlobalFilter(searchValue)}
                                 >
@@ -392,10 +404,7 @@ const AppointmentTable = () => {
                                         table.setGlobalFilter(e.target.value);
                                     }}
                                     styles={{
-                                        input: {
-                                            height: INPUT_HEIGHT,
-                                            border: "none",
-                                        },
+                                        input: { height: INPUT_HEIGHT, border: "none", borderRadius: 0 },
                                     }}
                                     style={{ width: 260 }}
                                 />
