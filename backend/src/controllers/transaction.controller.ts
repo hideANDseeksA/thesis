@@ -215,6 +215,9 @@ export const getHistory = async (_req: Request, res: Response): Promise<void> =>
       where: {
         status: { in: ["completed", "declined", "cancelled", "expired"] }
       },
+      orderBy: {
+        timestamp: "desc",
+      },
       include: {
         certificate: {
           select: {
