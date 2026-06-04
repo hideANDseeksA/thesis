@@ -282,17 +282,6 @@ const TransactionTable = () => {
               <DropdownMenuSeparator />
 
               <DropdownMenuItem
-                className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50"
-                onClick={() => {
-                  setEditingTransaction(row.original);
-                  setIsEditModalOpen(true);
-                }}
-              >
-                <IconEye className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
                 className="cursor-pointer"
                 onClick={() => handleGenerate(row.original)}
               >
